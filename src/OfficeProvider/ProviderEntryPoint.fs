@@ -16,7 +16,7 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
 
     let createProviderInstance(resolutionPath,document) = 
         match Path.GetExtension(document) with
-        | ".docx" -> (new WordProvider(document) :> IOfficeProvider) 
+        | ".docx" -> (new WordProvider(resolutionPath, document) :> IOfficeProvider) 
         | ".xlsx" -> (new ExcelProvider(resolutionPath, document) :> IOfficeProvider)
         | _ -> failwithf "Only docx (Word) and xlsx (Excel) files are currently supported"
 
@@ -49,7 +49,11 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
                                 documentType, 
                                 IsStaticMethod = true, 
                                 InvokeCode = (fun args -> 
-                                    <@@  new ExcelProvider("",(%%args.[0] : string)) :> IDisposable @@>)))
+                                    <@@  
+                                        let doc = (%%args.[0] : string)
+                                        if doc.EndsWith("xlsx")
+                                        then new ExcelProvider("", doc) :> IDisposable
+                                        else new WordProvider("", doc) :> IDisposable @@>)))
 
             rootType
     )

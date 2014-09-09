@@ -4,11 +4,20 @@
 [<Literal>]
 let path = @"D:\Appdev\officeprovider\docs\content\SimpleInvoice.xlsx"
 
+[<Literal>]
+let wordPath = @"D:\Appdev\officeprovider\docs\content\Billing statement.docx"
+
 type Office = OfficeProvider.Office<path>
+
+type Word = OfficeProvider.Office<wordPath>
 
 [<EntryPoint>]
 let main argv = 
     
+    use wordDoc = Word.Load(wordPath)
+
+    printfn "%s" wordDoc.``City, ST  ZIP Code``
+
     use doc = Office.Load(path)
     printfn "%s" doc.Name
 
