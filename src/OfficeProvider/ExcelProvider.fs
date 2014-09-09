@@ -2,6 +2,7 @@
 
 open System
 open System.IO
+open System.Linq
 open System.Text.RegularExpressions
 open DocumentFormat.OpenXml.Packaging
 open DocumentFormat.OpenXml.Spreadsheet
@@ -17,6 +18,17 @@ with
 type ExcelAddress = 
     | Cell of sheet:string * cell:ExcelCell
     | Range of sheet:string * startCell:ExcelCell * endCell:ExcelCell
+    with 
+        member x.Sheet 
+            with get() =
+                match x with
+                | Cell(sheet = s) -> s
+                | Range(sheet = s) -> s
+        member x.Indexes
+            with get() = 
+                match x with
+                | Cell(cell = c) -> c.ColumnIndex, c.RowIndex
+                | Range(startCell = c) -> c.ColumnIndex, c.RowIndex
 
 type ExcelField = {
     Name : string
@@ -84,7 +96,7 @@ module Excel =
             tokenizeCellAddress address 
             |> List.fold (fun (s,stack,res) x -> 
                match x with
-               | Sheet(sheetName) -> (sheetName, stack, res)
+               | Sheet(sheetName) -> (sheetName.Trim([|'\''|]), stack, res)
                | Column(col) -> (s, col, res)
                | Row(row) -> (s,"", { Column = stack; RowIndex = uint32(row); ColumnIndex = columnIndex stack } :: res ) 
             ) ("","", [])
@@ -93,23 +105,58 @@ module Excel =
         | [a] -> Cell(sheetName, a)
         | _ -> failwithf "Unable to parse cell address %s" address
 
-type ExcelProvider(documentPath:string) = 
-     
-     let doc = SpreadsheetDocument.Open(documentPath, true)
+type ExcelProvider(resolutionPath:string, document:string) = 
+     let documentPath = 
+            if String.IsNullOrWhiteSpace(resolutionPath)
+            then document
+            else Path.Combine(resolutionPath, document)
+
+     let doc =
+        if File.Exists(documentPath)
+        then SpreadsheetDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
+        else raise(FileNotFoundException("Could not find file", documentPath))
+
      let definedNames = 
         doc.WorkbookPart.Workbook.DefinedNames
         |> Seq.cast<DefinedName>
         |> Seq.map (fun dn -> dn.Name.Value, Excel.parseCellAddress dn.InnerText)
-     
-     do
-        doc.Close()
+        |> Map.ofSeq
+
+     let sheets = 
+        doc.WorkbookPart.Workbook.Descendants<Sheet>()
+        |> Seq.map (fun s -> s.Name.Value, doc.WorkbookPart.GetPartById(s.Id.Value) :?> WorksheetPart)
+        |> Map.ofSeq
+
+     let readCellValue (cell:Cell) =
+        let text = cell.CellValue.InnerText
+        match cell.DataType.Value with
+        | CellValues.Number -> 
+            Decimal.Parse text |> box
+        | CellValues.SharedString ->
+            let stringTable = doc.WorkbookPart.GetPartsOfType<SharedStringTablePart>() |> Seq.head
+            stringTable.SharedStringTable.ElementAt(Int32.Parse(text)).InnerText |> box
+        | CellValues.Boolean -> 
+            Boolean.Parse text |> box
+        | CellValues.Date -> 
+            DateTime.FromOADate(Double.Parse(text)) |> box
+        | _ -> text |> box
 
      interface IOfficeProvider with
         member x.GetFields() = 
-            definedNames 
-            |> Seq.map (fun (n, address) -> { FieldName = n; Type = typeof<string> })
-            |> Seq.toArray
+            definedNames
+            |> Map.toArray 
+            |> Array.map (fun (n, address) -> { FieldName = n; Type = typeof<string> })
 
-        member x.ReadField(name:string) = box (sprintf "Read word field %s from doc %s" name documentPath)
+        member x.ReadField(name:string) =
+            let cell =
+                let address = definedNames.[name]
+                sheets.[address.Sheet].Worksheet.Descendants<Cell>()
+                |> Seq.find (fun (x:Cell) ->
+                    let cellAddr = (Excel.parseCellAddress x.CellReference.Value) 
+                    cellAddr.Indexes = address.Indexes)
+            readCellValue cell
 
         member x.SetField(name:string, value:obj) = ()
+
+        member x.Dispose() = 
+            doc.Close()

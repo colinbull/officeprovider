@@ -10,3 +10,5 @@ type WordProvider(document:string) =
 
         member x.SetField(name:string, value:obj) = ()
 
+        member x.Dispose() = ()
+

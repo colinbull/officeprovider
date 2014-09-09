@@ -15,14 +15,9 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
     let officeRootType = ProvidedTypeDefinition(thisAssembly, rootNamespace, "Office", Some typeof<obj>)
 
     let createProviderInstance(resolutionPath,document) = 
-        let fullPath = 
-            if String.IsNullOrWhiteSpace(resolutionPath)
-            then document
-            else Path.Combine(resolutionPath, document)
-
         match Path.GetExtension(document) with
-        | ".docx" -> (new WordProvider(fullPath) :> IOfficeProvider) 
-        | ".xlsx" -> (new ExcelProvider(fullPath) :> IOfficeProvider)
+        | ".docx" -> (new WordProvider(document) :> IOfficeProvider) 
+        | ".xlsx" -> (new ExcelProvider(resolutionPath, document) :> IOfficeProvider)
         | _ -> failwithf "Only docx (Word) and xlsx (Excel) files are currently supported"
 
     let staticParameters = [
@@ -34,23 +29,33 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
         fun typeName parameters ->
             let resolutionPath = (parameters.[1] :?> string)
 
-            let ty = ProvidedTypeDefinition(thisAssembly, rootNamespace, typeName, Some typeof<obj>)
-            let provider = createProviderInstance(resolutionPath,(parameters.[0] :?> string)) 
-            let documentType = ProvidedTypeDefinition("Document", None, HideObjectMethods = true)
+            let serviceType = ProvidedTypeDefinition("DocumentTypes", None, HideObjectMethods = true)
+            let documentType = ProvidedTypeDefinition("Document", Some typeof<IDisposable>, HideObjectMethods = true)
+
+            use provider = createProviderInstance(resolutionPath,(parameters.[0] :?> string)) 
 
             provider.GetFields()
-            |> Array.iter (fun field -> 
-                documentType.AddMember(ProvidedProperty(field.FieldName, field.Type, GetterCode = (fun args -> <@@ ((%%args.[0] : obj) :?> IOfficeProvider).ReadField(field.FieldName) @@>)))
+            |> Array.iter (fun field ->
+                let fieldName = field.FieldName
+                documentType.AddMember(ProvidedProperty(field.FieldName, field.Type, GetterCode = (fun args -> <@@ ((%%args.[0] : IDisposable) :?> IOfficeProvider).ReadField(fieldName) @@>)))
             )
             
-            ty.AddMember(documentType)
-            ty.AddMember(ProvidedMethod("Load", [ProvidedParameter("document", typeof<string>)], documentType, IsStaticMethod = true, InvokeCode = (fun args -> <@@  createProviderInstance("",(%%args.[0] : string)) @@>)))
+            serviceType.AddMember(documentType)
 
-            ty
+            let rootType = ProvidedTypeDefinition(Assembly.LoadFrom config.RuntimeAssembly, rootNamespace, typeName, Some typeof<obj>, HideObjectMethods = true)
+            
+            rootType.AddMember(serviceType)
+            rootType.AddMember(ProvidedMethod("Load", [ProvidedParameter("document", typeof<string>)], 
+                                documentType, 
+                                IsStaticMethod = true, 
+                                InvokeCode = (fun args -> 
+                                    <@@  new ExcelProvider("",(%%args.[0] : string)) :> IDisposable @@>)))
+
+            rootType
     )
 
 
-    do this.AddNamespace("OfficeProvider", [officeRootType])
+    do this.AddNamespace(rootNamespace, [officeRootType])
 
 
 [<assembly:TypeProviderAssembly>]

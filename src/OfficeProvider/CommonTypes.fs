@@ -10,7 +10,8 @@ module Types =
         Type : Type
     }
 
-    type IOfficeProvider = 
+    type IOfficeProvider =
+        inherit IDisposable
         //Gets the fields that can be used to fill in types
         //In word these are actually fields in excel these
         //are named ranges.

@@ -2,17 +2,15 @@
 // See the 'F# Tutorial' project for more help.
 
 [<Literal>]
-let path = @"D:\Proposal_Third_Party_Services.xlsx"
+let path = @"D:\Appdev\officeprovider\docs\content\SimpleInvoice.xlsx"
 
 type Office = OfficeProvider.Office<path>
 
 [<EntryPoint>]
 let main argv = 
     
-    let doc = Office.Load(path)
-    doc.
+    use doc = Office.Load(path)
+    printfn "%s" doc.Name
 
-    
-
-    printfn "%A" argv
+    System.Console.ReadLine() |> ignore
     0 // return an integer exit code
