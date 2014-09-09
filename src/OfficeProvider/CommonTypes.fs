@@ -6,7 +6,7 @@ open System
 module Types =
     
     type Field = {
-        Name : string
+        FieldName : string
         Type : Type
     }
 
