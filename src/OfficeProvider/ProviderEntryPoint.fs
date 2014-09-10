@@ -17,30 +17,37 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
 
     let createProviderInstance(resolutionPath,document) = 
         match Path.GetExtension(document) with
-        | ".docx" -> (new WordProvider(resolutionPath, document) :> IOfficeProvider) 
-        | ".xlsx" -> (new ExcelProvider(resolutionPath, document) :> IOfficeProvider)
+        | ".docx" -> (new WordProvider(resolutionPath, document, false) :> IOfficeProvider) 
+        | ".xlsx" -> (new ExcelProvider(resolutionPath, document, false) :> IOfficeProvider)
         | _ -> failwithf "Only docx (Word) and xlsx (Excel) files are currently supported"
 
     let staticParameters = [
         ProvidedStaticParameter("Document", typeof<string>)
-        ProvidedStaticParameter("ResolutionPath", typeof<string>, "")
+        ProvidedStaticParameter("WorkingDirectory", typeof<string>, "")
+        ProvidedStaticParameter("CopySourceFile", typeof<bool>, false)
     ]
 
     do officeRootType.DefineStaticParameters(staticParameters, 
         fun typeName parameters ->
-            let resolutionPath = (parameters.[1] :?> string)
+            let documentPath = (parameters.[0] :?> string)
+            let resolutionPath = 
+                let respath = (parameters.[1] :?> string)
+                if String.IsNullOrWhiteSpace respath 
+                then config.ResolutionFolder
+                else respath
+            let shadowCopy = (parameters.[2] :?> bool)
 
             let serviceType = ProvidedTypeDefinition("DocumentTypes", None, HideObjectMethods = true)
-            let documentType = ProvidedTypeDefinition("Document", Some typeof<IDisposable>, HideObjectMethods = true)
+            let documentType = ProvidedTypeDefinition("Document", Some typeof<ITransacted>, HideObjectMethods = true)
 
-            use provider = createProviderInstance(resolutionPath,(parameters.[0] :?> string)) 
+            use provider = createProviderInstance(resolutionPath, documentPath) 
 
             provider.GetFields()
             |> Array.iter (fun field ->
                 let fieldName = field.FieldName
                 documentType.AddMember(ProvidedProperty(field.FieldName, field.Type, 
-                                        GetterCode = (fun args -> <@@ ((%%args.[0] : IDisposable) :?> IOfficeProvider).ReadField(fieldName) @@>),
-                                        SetterCode = (fun args -> <@@ ((%%args.[0] : IDisposable) :?> IOfficeProvider).SetField(fieldName, %%Expr.Coerce(args.[1],typeof<obj>)) @@>)))
+                                        GetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).ReadField(fieldName) @@>),
+                                        SetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).SetField(fieldName, %%Expr.Coerce(args.[1],typeof<obj>)) @@>)))
             )
             
             serviceType.AddMember(documentType)
@@ -55,8 +62,8 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
                                     <@@  
                                         let doc = (%%args.[0] : string)
                                         if doc.EndsWith("xlsx")
-                                        then new ExcelProvider("", doc) :> IDisposable
-                                        else new WordProvider("", doc) :> IDisposable @@>)))
+                                        then new ExcelProvider(resolutionPath, doc, shadowCopy) :> ITransacted
+                                        else new WordProvider(resolutionPath, doc, shadowCopy) :> ITransacted @@>)))
 
             rootType
     )

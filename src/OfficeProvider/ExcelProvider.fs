@@ -108,7 +108,7 @@ module Excel =
         | [a] -> Cell(sheetName, a)
         | _ -> failwithf "Unable to parse cell address %s" address
 
-type ExcelProvider(resolutionPath:string, document:string) = 
+type ExcelProvider(resolutionPath:string, document:string, shadowCopy:bool) = 
     
     let NumericTypes = 
         HashSet [
@@ -117,15 +117,8 @@ type ExcelProvider(resolutionPath:string, document:string) =
              typeof<uint64>; typeof<float>; typeof<float32>
         ]
     
-    let documentPath = 
-          if String.IsNullOrWhiteSpace(resolutionPath)
-           then document
-           else Path.Combine(resolutionPath, document)
-
-    let doc =
-       if File.Exists(documentPath)
-       then SpreadsheetDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
-       else raise(FileNotFoundException("Could not find file", documentPath))
+    let documentPath = File.getPath resolutionPath document shadowCopy
+    let doc = SpreadsheetDocument.Open(documentPath, true)
 
     let definedNames = 
        doc.WorkbookPart.Workbook.DefinedNames
@@ -135,7 +128,10 @@ type ExcelProvider(resolutionPath:string, document:string) =
 
     let sheets = 
        doc.WorkbookPart.Workbook.Descendants<Sheet>()
-       |> Seq.map (fun s -> s.Name.Value, doc.WorkbookPart.GetPartById(s.Id.Value) :?> WorksheetPart)
+       |> Seq.choose (fun s -> 
+            match doc.WorkbookPart.GetPartById(s.Id.Value) with
+            | :? WorksheetPart as a -> Some(s.Name.Value, a)
+            | _ -> None)
        |> Map.ofSeq
 
     let getStringTable() = 
@@ -235,6 +231,19 @@ type ExcelProvider(resolutionPath:string, document:string) =
                | Some(cell) -> cell
                | None -> failwithf "Could not find cell(s) for range %s" name
            writeCellValue cell value     
+        
+       member x.Commit(path) =
+            doc.WorkbookPart.Workbook.Save()
+            doc.Close()
+            if File.Exists(path) then File.Delete(path)
+            File.Copy(documentPath, path)
+            (x :> IDisposable).Dispose()
 
-       member x.Dispose() = 
-           doc.Close()
+       member x.Rollback() =
+            doc.Close()
+            (x :> IDisposable).Dispose()
+
+       member x.Dispose() =
+           doc.Dispose()
+           if File.Exists(documentPath) && shadowCopy then File.Delete(documentPath) 
+           

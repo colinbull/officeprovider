@@ -7,16 +7,9 @@ open System.Text.RegularExpressions
 open DocumentFormat.OpenXml.Packaging
 open DocumentFormat.OpenXml.Wordprocessing
 
-type WordProvider(resolutionPath:string, document:string) = 
-     let documentPath = 
-            if String.IsNullOrWhiteSpace(resolutionPath)
-            then document
-            else Path.Combine(resolutionPath, document)
-
-     let doc =
-        if File.Exists(documentPath)
-        then WordprocessingDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
-        else raise(FileNotFoundException("Could not find file", documentPath)) 
+type WordProvider(resolutionPath:string, document:string, shadowCopy:bool) = 
+     let documentPath = File.getPath resolutionPath document shadowCopy
+     let doc = WordprocessingDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
 
      let contentControls =
         [|
@@ -41,14 +34,23 @@ type WordProvider(resolutionPath:string, document:string) =
         |> Map.ofArray
            
      interface IOfficeProvider with
-        member x.GetFields() =
-            contentControls |> Map.toArray |> Array.map (fun (name, _) -> { FieldName = name; Type = typeof<String> })
+       member x.GetFields() =
+           contentControls |> Map.toArray |> Array.map (fun (name, _) -> { FieldName = name; Type = typeof<String> })
 
-        member x.ReadField(name:string) =
-            contentControls.[name].Descendants<Text>().Single().Text |> box
+       member x.ReadField(name:string) =
+           contentControls.[name].Descendants<Text>().Single().Text |> box
 
+       member x.SetField(name:string, value:obj) = ()
 
-        member x.SetField(name:string, value:obj) = ()
+       member x.Commit(path) = 
+            if File.Exists(path) then File.Delete(path)
+            File.Copy(documentPath, path)
+            (x :> IDisposable).Dispose()
 
-        member x.Dispose() = doc.Close()
+       member x.Rollback() = 
+            (x :> IDisposable).Dispose()
+
+       member x.Dispose() =
+           if File.Exists(documentPath) && shadowCopy then File.Delete(documentPath) 
+           doc.Close()
 

@@ -7,7 +7,7 @@ let path = @"D:\Appdev\officeprovider\docs\content\SimpleInvoice.xlsx"
 [<Literal>]
 let wordPath = @"D:\Appdev\officeprovider\docs\content\Billing statement.docx"
 
-type Excel = OfficeProvider.Office<path>
+type Excel = OfficeProvider.Office<path, CopySourceFile = true>
 
 //type Word = OfficeProvider.Office<wordPath>
 
@@ -22,6 +22,8 @@ let main argv =
     
     doc.Name <- "Colin Bull"
     printfn "%s" doc.Name
+
+    doc.Commit(@"D:\Appdev\officeprovider\docs\content\SimpleInvoice_Updated.xlsx")
 
     System.Console.ReadLine() |> ignore
     0 // return an integer exit code
