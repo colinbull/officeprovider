@@ -18,7 +18,7 @@ type WordProvider(resolutionPath:string, document:string) =
         then WordprocessingDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
         else raise(FileNotFoundException("Could not find file", documentPath)) 
 
-     let contentControls = 
+     let contentControls =
         [|
             for cc in doc.MainDocumentPart.Document.Descendants<SdtElement>() do
                 yield cc;

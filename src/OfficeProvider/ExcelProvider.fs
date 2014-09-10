@@ -3,7 +3,10 @@
 open System
 open System.IO
 open System.Linq
+open System.Globalization
+open System.Collections.Generic
 open System.Text.RegularExpressions
+open DocumentFormat.OpenXml
 open DocumentFormat.OpenXml.Packaging
 open DocumentFormat.OpenXml.Spreadsheet
 
@@ -106,57 +109,132 @@ module Excel =
         | _ -> failwithf "Unable to parse cell address %s" address
 
 type ExcelProvider(resolutionPath:string, document:string) = 
-     let documentPath = 
-            if String.IsNullOrWhiteSpace(resolutionPath)
-            then document
-            else Path.Combine(resolutionPath, document)
+    
+    let NumericTypes = 
+        HashSet [
+             typeof<decimal>; typeof<int8>; typeof<uint8>;
+             typeof<int16>; typeof<uint16>; typeof<int32>; typeof<uint32>; typeof<int64>;
+             typeof<uint64>; typeof<float>; typeof<float32>
+        ]
+    
+    let documentPath = 
+          if String.IsNullOrWhiteSpace(resolutionPath)
+           then document
+           else Path.Combine(resolutionPath, document)
 
-     let doc =
-        if File.Exists(documentPath)
-        then SpreadsheetDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
-        else raise(FileNotFoundException("Could not find file", documentPath))
+    let doc =
+       if File.Exists(documentPath)
+       then SpreadsheetDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
+       else raise(FileNotFoundException("Could not find file", documentPath))
 
-     let definedNames = 
-        doc.WorkbookPart.Workbook.DefinedNames
-        |> Seq.cast<DefinedName>
-        |> Seq.map (fun dn -> dn.Name.Value, Excel.parseCellAddress dn.InnerText)
-        |> Map.ofSeq
+    let definedNames = 
+       doc.WorkbookPart.Workbook.DefinedNames
+       |> Seq.cast<DefinedName>
+       |> Seq.map (fun dn -> dn.Name.Value, Excel.parseCellAddress dn.InnerText)
+       |> Map.ofSeq
 
-     let sheets = 
-        doc.WorkbookPart.Workbook.Descendants<Sheet>()
-        |> Seq.map (fun s -> s.Name.Value, doc.WorkbookPart.GetPartById(s.Id.Value) :?> WorksheetPart)
-        |> Map.ofSeq
+    let sheets = 
+       doc.WorkbookPart.Workbook.Descendants<Sheet>()
+       |> Seq.map (fun s -> s.Name.Value, doc.WorkbookPart.GetPartById(s.Id.Value) :?> WorksheetPart)
+       |> Map.ofSeq
 
-     let readCellValue (cell:Cell) =
+    let getStringTable() = 
+        let stringTable = 
+            let st = doc.WorkbookPart.GetPartsOfType<SharedStringTablePart>().FirstOrDefault()
+            if st = null
+            then doc.WorkbookPart.AddNewPart<SharedStringTablePart>()
+            else st
+        if stringTable.SharedStringTable = null then stringTable.SharedStringTable <- new SharedStringTable()
+        stringTable.SharedStringTable
+
+    let insertSharedString str =  
+        let table = getStringTable()
+        
+        let rec find' index found (elements : SharedStringItem list) = 
+            if found then Choice1Of2 index
+            else
+                match elements with
+                | [] -> Choice2Of2 index
+                | h :: t -> find' (index + 1) (h.InnerText = str) t 
+
+        match find' 0 false (table.Elements<SharedStringItem>() |> Seq.toList) with
+        | Choice1Of2(i) -> i
+        | Choice2Of2(i) ->
+            table.AppendChild(new SharedStringItem([|new Text(str)|] |> Seq.cast<OpenXmlElement>)) |> ignore
+            table.Save();
+            i
+
+    let readCellValue (cell:Cell) =
         let text = cell.CellValue.InnerText
         match cell.DataType.Value with
         | CellValues.Number -> 
             Decimal.Parse text |> box
         | CellValues.SharedString ->
-            let stringTable = doc.WorkbookPart.GetPartsOfType<SharedStringTablePart>() |> Seq.head
-            stringTable.SharedStringTable.ElementAt(Int32.Parse(text)).InnerText |> box
+            getStringTable().ElementAt(Int32.Parse(text)).InnerText |> box
         | CellValues.Boolean -> 
             Boolean.Parse text |> box
         | CellValues.Date -> 
             DateTime.FromOADate(Double.Parse(text)) |> box
         | _ -> text |> box
+        
+    let writeCellValue (cell:Cell) (value:obj) = 
+        match value with
+        | :? string as v ->
+             let index = insertSharedString(v)
+             cell.CellValue <- new CellValue(index.ToString(CultureInfo.InvariantCulture))
+             cell.DataType <- new EnumValue<CellValues>(CellValues.SharedString)
+        | :? DateTime as v ->
+            let dtStr = v.ToOADate().ToString(CultureInfo.InvariantCulture)
+            cell.CellValue <- new CellValue(dtStr)
+            cell.DataType <- new EnumValue<CellValues>(CellValues.Date)
+        | _ when NumericTypes.Contains(value.GetType()) -> 
+            cell.CellValue <- new CellValue(value.ToString())
+            cell.DataType <- new EnumValue<CellValues>(CellValues.Number)
+        | null -> 
+            cell.CellValue <- new CellValue(null)
+        | _ -> failwithf "Unable to write type %A" (value.GetType().Name)
+    
+    let tryGetCell (a:ExcelAddress) =
+        let sheet = sheets.[a.Sheet]
+        sheet.Worksheet.Descendants<Cell>()
+        |> Seq.tryFind (fun (x:Cell) ->
+            let cellAddr = (Excel.parseCellAddress x.CellReference.Value) 
+            cellAddr.Indexes = a.Indexes)
 
-     interface IOfficeProvider with
-        member x.GetFields() = 
-            definedNames
-            |> Map.toArray 
-            |> Array.map (fun (n, address) -> { FieldName = n; Type = typeof<string> })
+    let getCellType = function 
+        | Range _ -> typeof<obj[][]>
+        | Cell _ as a -> 
+            match tryGetCell a with
+            | Some(cell) when cell.DataType <> null && cell.DataType.HasValue -> 
+               match cell.DataType.Value with
+               | CellValues.Number -> typeof<decimal>
+               | CellValues.SharedString -> typeof<string>
+               | CellValues.Boolean -> typeof<bool>
+               | CellValues.Date -> typeof<DateTime>
+               | _ -> typeof<string>
+            | _ as c -> typeof<string>
 
-        member x.ReadField(name:string) =
-            let cell =
-                let address = definedNames.[name]
-                sheets.[address.Sheet].Worksheet.Descendants<Cell>()
-                |> Seq.find (fun (x:Cell) ->
-                    let cellAddr = (Excel.parseCellAddress x.CellReference.Value) 
-                    cellAddr.Indexes = address.Indexes)
-            readCellValue cell
+    interface IOfficeProvider with
+       member x.GetFields() = 
+           definedNames
+           |> Map.toArray 
+           |> Array.map (fun (n, addr) -> { FieldName = n; Type = (getCellType addr) })
 
-        member x.SetField(name:string, value:obj) = ()
+       member x.ReadField(name:string) =
+           let cell =
+               let address = definedNames.[name]
+               match tryGetCell address with
+               | Some(cell) -> cell
+               | None -> failwithf "Could not find cell(s) for range %s" name
+           readCellValue cell
 
-        member x.Dispose() = 
-            doc.Close()
+       member x.SetField(name:string, value:obj) =
+           let cell =
+               let address = definedNames.[name]
+               match tryGetCell address with
+               | Some(cell) -> cell
+               | None -> failwithf "Could not find cell(s) for range %s" name
+           writeCellValue cell value     
+
+       member x.Dispose() = 
+           doc.Close()

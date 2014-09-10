@@ -7,18 +7,20 @@ let path = @"D:\Appdev\officeprovider\docs\content\SimpleInvoice.xlsx"
 [<Literal>]
 let wordPath = @"D:\Appdev\officeprovider\docs\content\Billing statement.docx"
 
-type Office = OfficeProvider.Office<path>
+type Excel = OfficeProvider.Office<path>
 
-type Word = OfficeProvider.Office<wordPath>
+//type Word = OfficeProvider.Office<wordPath>
 
 [<EntryPoint>]
 let main argv = 
     
-    use wordDoc = Word.Load(wordPath)
+//    use wordDoc = Word.Load(wordPath)
+//
+//    printfn "%s" wordDoc.Date
 
-    printfn "%s" wordDoc.``City, ST  ZIP Code``
-
-    use doc = Office.Load(path)
+    use doc = Excel.Load(path)
+    
+    doc.Name <- "Colin Bull"
     printfn "%s" doc.Name
 
     System.Console.ReadLine() |> ignore

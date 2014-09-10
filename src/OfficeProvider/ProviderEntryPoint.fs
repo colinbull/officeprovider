@@ -5,6 +5,7 @@ open System.IO
 open System.Reflection
 open Microsoft.FSharp.Core.CompilerServices
 open ProviderImplementation.ProvidedTypes
+open Microsoft.FSharp.Quotations
 
 [<TypeProvider>]
 type OfficeTypeProvider(config:TypeProviderConfig) as this = 
@@ -37,7 +38,9 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
             provider.GetFields()
             |> Array.iter (fun field ->
                 let fieldName = field.FieldName
-                documentType.AddMember(ProvidedProperty(field.FieldName, field.Type, GetterCode = (fun args -> <@@ ((%%args.[0] : IDisposable) :?> IOfficeProvider).ReadField(fieldName) @@>)))
+                documentType.AddMember(ProvidedProperty(field.FieldName, field.Type, 
+                                        GetterCode = (fun args -> <@@ ((%%args.[0] : IDisposable) :?> IOfficeProvider).ReadField(fieldName) @@>),
+                                        SetterCode = (fun args -> <@@ ((%%args.[0] : IDisposable) :?> IOfficeProvider).SetField(fieldName, %%Expr.Coerce(args.[1],typeof<obj>)) @@>)))
             )
             
             serviceType.AddMember(documentType)
@@ -57,8 +60,7 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
 
             rootType
     )
-
-
+    
     do this.AddNamespace(rootNamespace, [officeRootType])
 
 
