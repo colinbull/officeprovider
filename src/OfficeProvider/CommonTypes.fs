@@ -2,6 +2,19 @@
 
 open System
 
+module Seq = 
+    
+    let findIndexOrMax p (source:seq<_>) = 
+            if source = null then raise(NullReferenceException())
+            use ie = source.GetEnumerator() 
+            let rec loop i = 
+                if ie.MoveNext() then 
+                    if p ie.Current then Choice1Of2 i
+                    else loop (i+1)
+                else
+                    Choice2Of2 i
+            loop 0
+
 [<AutoOpen>]
 module Types =
     

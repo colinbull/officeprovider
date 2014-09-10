@@ -74,13 +74,6 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\OfficeProvider\OfficeProvider.fsproj">
-      <Name>OfficeProvider</Name>
-      <Project>{b8134fc6-3f15-4f95-baac-e5b2c7856060}</Project>
-      <Private>True</Private>
-    </ProjectReference>
-  </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

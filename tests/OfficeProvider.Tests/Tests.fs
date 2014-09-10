@@ -1,6 +1,5 @@
 module OfficeProvider.Tests
 
-open OfficeProvider
 open NUnit.Framework
 
 [<Test>]
