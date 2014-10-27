@@ -40,7 +40,8 @@ type WordProvider(resolutionPath:string, document:string, shadowCopy:bool) =
        member x.ReadField(name:string) =
            contentControls.[name].Descendants<Text>().Single().Text |> box
 
-       member x.SetField(name:string, value:obj) = ()
+       member x.SetField(name:string, value:obj) =
+        contentControls.[name].Descendants<Text>().Single().Text <- (value.ToString())
 
        member x.Commit(path) = 
             if File.Exists(path) then File.Delete(path)
