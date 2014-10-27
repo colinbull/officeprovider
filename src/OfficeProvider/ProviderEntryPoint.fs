@@ -17,14 +17,14 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
 
     let createProviderInstance(resolutionPath,document) = 
         match Path.GetExtension(document) with
-        | ".docx" -> (new WordProvider(resolutionPath, document, false) :> IOfficeProvider) 
-        | ".xlsx" -> (new ExcelProvider(resolutionPath, document, false) :> IOfficeProvider)
+        | ".docx" -> (new WordProvider(resolutionPath, document, true) :> IOfficeProvider) 
+        | ".xlsx" -> (new ExcelProvider(resolutionPath, document, true) :> IOfficeProvider)
         | _ -> failwithf "Only docx (Word) and xlsx (Excel) files are currently supported"
 
     let staticParameters = [
         ProvidedStaticParameter("Document", typeof<string>)
         ProvidedStaticParameter("WorkingDirectory", typeof<string>, "")
-        ProvidedStaticParameter("CopySourceFile", typeof<bool>, false)
+        ProvidedStaticParameter("CopySourceFile", typeof<bool>, true)
     ]
 
     do officeRootType.DefineStaticParameters(staticParameters, 

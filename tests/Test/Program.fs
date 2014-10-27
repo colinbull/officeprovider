@@ -9,7 +9,7 @@ let wordPath = @"D:\Appdev\officeprovider\docs\content\Billing statement.docx"
 
 type Excel = OfficeProvider.Office<path, CopySourceFile = true>
 
-//type Word = OfficeProvider.Office<wordPath>
+type Word = OfficeProvider.Office<wordPath, CopySourceFile = true>
 
 [<EntryPoint>]
 let main argv = 
@@ -19,11 +19,17 @@ let main argv =
 //    printfn "%s" wordDoc.Date
 
     use doc = Excel.Load(path)
+
+    doc.Name <- ((float doc.QTY) * (float doc.UNITPRICE)).ToString()
     
-    doc.Name <- "Colin Bull"
     printfn "%s" doc.Name
 
     doc.Commit(@"D:\Appdev\officeprovider\docs\content\SimpleInvoice_Updated.xlsx")
+
+    use word = Word.Load(path)
+    
+    word.
+    
 
     System.Console.ReadLine() |> ignore
     0 // return an integer exit code

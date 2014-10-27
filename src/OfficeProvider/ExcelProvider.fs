@@ -162,16 +162,19 @@ type ExcelProvider(resolutionPath:string, document:string, shadowCopy:bool) =
 
     let readCellValue (cell:Cell) =
         let text = cell.CellValue.InnerText
-        match cell.DataType.Value with
-        | CellValues.Number -> 
-            Decimal.Parse text |> box
-        | CellValues.SharedString ->
-            getStringTable().ElementAt(Int32.Parse(text)).InnerText |> box
-        | CellValues.Boolean -> 
-            Boolean.Parse text |> box
-        | CellValues.Date -> 
-            DateTime.FromOADate(Double.Parse(text)) |> box
-        | _ -> text |> box
+        if(cell.DataType.HasValue)
+        then
+            match cell.DataType.Value with
+            | CellValues.Number -> 
+                Decimal.Parse text |> box
+            | CellValues.SharedString ->
+                getStringTable().ElementAt(Int32.Parse(text)).InnerText |> box
+            | CellValues.Boolean -> 
+                Boolean.Parse text |> box
+            | CellValues.Date -> 
+                DateTime.FromOADate(Double.Parse(text)) |> box
+            | _ -> text |> box
+        else text |> box
         
     let writeCellValue (cell:Cell) (value:obj) = 
         match value with
