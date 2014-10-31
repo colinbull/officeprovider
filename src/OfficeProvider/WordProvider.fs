@@ -9,8 +9,8 @@ open DocumentFormat.OpenXml
 open DocumentFormat.OpenXml.Packaging
 open DocumentFormat.OpenXml.Wordprocessing
 
-type WordProvider(parameters:ProviderInitParameters) = 
-     let documentPath = File.getPath parameters.ResolutionPath parameters.DocumentPath "docx" parameters.ShadowCopy
+type WordProvider(resolutionPath, docPath, shadowCopy) = 
+     let documentPath = File.getPath resolutionPath docPath "docx" shadowCopy
      let doc = WordprocessingDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
 
      let contentControls =
@@ -107,6 +107,6 @@ type WordProvider(parameters:ProviderInitParameters) =
 
        member x.Dispose() =
            doc.Dispose()
-           if File.Exists(documentPath) && parameters.ShadowCopy then File.Delete(documentPath) 
+           if File.Exists(documentPath) && shadowCopy then File.Delete(documentPath) 
           
 

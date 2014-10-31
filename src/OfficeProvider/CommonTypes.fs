@@ -44,6 +44,7 @@ module Types =
         ResolutionPath : string
         DocumentPath : string
         ShadowCopy : bool
+        AllowNameEquality : bool
     }
 
     type IOfficeProvider =

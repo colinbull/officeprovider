@@ -108,7 +108,7 @@ module Excel =
         | [a] -> Cell(sheetName, a)
         | _ -> failwithf "Unable to parse cell address %s" address
 
-type ExcelProvider(parameters:ProviderInitParameters) = 
+type ExcelProvider(resolutionPath, docPath, shadowCopy) = 
     
     let NumericTypes = 
         HashSet [
@@ -117,7 +117,7 @@ type ExcelProvider(parameters:ProviderInitParameters) =
              typeof<uint64>; typeof<float>; typeof<float32>
         ]
     
-    let documentPath = File.getPath parameters.ResolutionPath parameters.DocumentPath "xlsx" parameters.ShadowCopy
+    let documentPath = File.getPath resolutionPath docPath "xlsx" shadowCopy
     let doc = SpreadsheetDocument.Open(documentPath, true)
 
     let definedNames = 
@@ -251,5 +251,5 @@ type ExcelProvider(parameters:ProviderInitParameters) =
 
        member x.Dispose() =
            doc.Dispose()
-           if File.Exists(documentPath) && parameters.ShadowCopy then File.Delete(documentPath) 
+           if File.Exists(documentPath) && shadowCopy then File.Delete(documentPath) 
            

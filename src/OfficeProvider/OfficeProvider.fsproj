@@ -57,6 +57,7 @@
     <Compile Include="ProvidedTypes.fsi" />
     <Compile Include="ProvidedTypes.fs" />
     <Compile Include="DebugProvidedTypes.fs" />
+    <Compile Include="QuotationHelpers.fs" />
     <Compile Include="CommonTypes.fs" />
     <Compile Include="ExcelProvider.fs" />
     <Compile Include="WordProvider.fs" />

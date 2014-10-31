@@ -9,8 +9,8 @@ open Microsoft.FSharp.Quotations
 
 type OfficeTypeProvider(config:TypeProviderConfig, 
                         rootTypeCtor: (Assembly * string -> ProvidedTypeDefinition), 
-                        providerCtor : (string * string * bool -> IOfficeProvider),
-                        loadExpr : (string * bool * Expr list) -> Expr) as this = 
+                        providerCtor : (ProviderInitParameters -> IOfficeProvider),
+                        loadExpr : (ProviderInitParameters * Expr list) -> Expr) as this = 
     inherit TypeProviderForNamespaces()
     
     let rootNamespace = "OfficeProvider"
@@ -22,6 +22,7 @@ type OfficeTypeProvider(config:TypeProviderConfig,
         ProvidedStaticParameter("Document", typeof<string>)
         ProvidedStaticParameter("WorkingDirectory", typeof<string>, "")
         ProvidedStaticParameter("CopySourceFile", typeof<bool>, true)
+        ProvidedStaticParameter("AllowNameEquality", typeof<bool>, true)
     ]
 
     do officeRootType.DefineStaticParameters(staticParameters, 
@@ -33,19 +34,31 @@ type OfficeTypeProvider(config:TypeProviderConfig,
                 then config.ResolutionFolder
                 else respath
             let shadowCopy = (parameters.[2] :?> bool)
+            let allowNameEquality = (parameters.[3] :?> bool)
+
             let typePrefix = Path.GetFileNameWithoutExtension(documentPath).Replace(" ", "")
             let serviceType = ProvidedTypeDefinition(typePrefix + "DocumentTypes", None, HideObjectMethods = true)
             let documentType = ProvidedTypeDefinition(typePrefix + "Document", Some typeof<ITransacted>, HideObjectMethods = true)
 
-            let provider = providerCtor(resolutionPath, documentPath, shadowCopy) 
+            let parameters = { 
+                ResolutionPath = resolutionPath; 
+                DocumentPath = documentPath; 
+                ShadowCopy = shadowCopy;
+                AllowNameEquality = allowNameEquality
+            }
 
-            provider.GetFields()
-            |> Array.iter (fun field ->
-                let fieldName = field.FieldName
-                documentType.AddMember(ProvidedProperty(field.FieldName, field.Type, 
-                                        GetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).ReadField(fieldName) @@>),
-                                        SetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).SetField(fieldName, %%Expr.Coerce(args.[1],typeof<obj>)) @@>)))
-            )
+            let provider = providerCtor(parameters) 
+
+            let properties = 
+                provider.GetFields()
+                |> Array.map (fun field ->
+                    let fieldName = field.FieldName
+                    ProvidedProperty(field.FieldName, field.Type, 
+                                     GetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).ReadField(fieldName) @@>),
+                                     SetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).SetField(fieldName, %%Expr.Coerce(args.[1],typeof<obj>)) @@>))
+                )
+            
+            documentType.AddMembers(properties |> Array.toList)
 
             provider.Dispose()
 
@@ -57,7 +70,7 @@ type OfficeTypeProvider(config:TypeProviderConfig,
             rootType.AddMember(ProvidedMethod("Load", [ProvidedParameter("document", typeof<string>)], 
                                 documentType, 
                                 IsStaticMethod = true, 
-                                InvokeCode = (fun args -> loadExpr(resolutionPath, shadowCopy, args))))
+                                InvokeCode = (fun args -> loadExpr(parameters, args))))
 
             rootType
     )
@@ -69,11 +82,12 @@ type ExcelTypeProvider(config:TypeProviderConfig) =
     inherit OfficeTypeProvider(
         config, 
         (fun (assm, ns) -> ProvidedTypeDefinition(assm, ns, "Excel", Some typeof<obj>)),
-        (fun (resPath, filePath, shadowCopy) -> new ExcelProvider(resPath, filePath, shadowCopy) :> IOfficeProvider),
-        (fun (resPath, shadowCopy, args) -> 
+        (fun param -> new ExcelProvider(param.ResolutionPath, param.DocumentPath, param.ShadowCopy) :> IOfficeProvider),
+        (fun (param, args) -> 
+            let (rp, sc) = (param.ResolutionPath, param.ShadowCopy)
             <@@  
                  let doc = (%%args.[0] : string)
-                 new ExcelProvider(resPath, doc, shadowCopy) :> ITransacted @@>)   
+                 new ExcelProvider(rp, doc, sc) :> ITransacted @@>)   
     )
 
 [<TypeProvider>]
@@ -81,11 +95,12 @@ type WordTypeProvider(config:TypeProviderConfig) =
     inherit OfficeTypeProvider(
         config, 
         (fun (assm, ns) -> ProvidedTypeDefinition(assm, ns, "Word", Some typeof<obj>)),
-        (fun (resPath, filePath, shadowCopy) -> new WordProvider(resPath, filePath, shadowCopy) :> IOfficeProvider),
-        (fun (resPath, shadowCopy, args) -> 
-            <@@  
+        (fun param -> new WordProvider(param.ResolutionPath, param.DocumentPath, param.ShadowCopy) :> IOfficeProvider),
+        (fun (param, args) -> 
+            let (rp, sc) = (param.ResolutionPath, param.ShadowCopy)
+            <@@ 
                  let doc = (%%args.[0] : string)
-                 new WordProvider(resPath, doc, shadowCopy) :> ITransacted @@>)    
+                 new WordProvider(rp, doc, sc) :> ITransacted @@>)   
     )
 
 [<assembly:TypeProviderAssembly>]
