@@ -117,7 +117,7 @@ type ExcelProvider(resolutionPath:string, document:string, shadowCopy:bool) =
              typeof<uint64>; typeof<float>; typeof<float32>
         ]
     
-    let documentPath = File.getPath resolutionPath document shadowCopy
+    let documentPath = File.getPath resolutionPath document "xlsx" shadowCopy
     let doc = SpreadsheetDocument.Open(documentPath, true)
 
     let definedNames = 
@@ -161,20 +161,23 @@ type ExcelProvider(resolutionPath:string, document:string, shadowCopy:bool) =
             i
 
     let readCellValue (cell:Cell) =
-        let text = cell.CellValue.InnerText
-        if(cell.DataType.HasValue)
+        if cell.CellValue <> null
         then
-            match cell.DataType.Value with
-            | CellValues.Number -> 
-                Decimal.Parse text |> box
-            | CellValues.SharedString ->
-                getStringTable().ElementAt(Int32.Parse(text)).InnerText |> box
-            | CellValues.Boolean -> 
-                Boolean.Parse text |> box
-            | CellValues.Date -> 
-                DateTime.FromOADate(Double.Parse(text)) |> box
-            | _ -> text |> box
-        else text |> box
+            let text = cell.CellValue.InnerText
+            if (cell.DataType <> null) && (cell.DataType.HasValue)
+            then
+                match cell.DataType.Value with
+                | CellValues.Number -> 
+                    Decimal.Parse text |> box
+                | CellValues.SharedString ->
+                    getStringTable().ElementAt(Int32.Parse(text)).InnerText |> box
+                | CellValues.Boolean -> 
+                    Boolean.Parse text |> box
+                | CellValues.Date -> 
+                    DateTime.FromOADate(Double.Parse(text)) |> box
+                | _ -> text |> box
+            else text |> box
+        else null
         
     let writeCellValue (cell:Cell) (value:obj) = 
         match value with

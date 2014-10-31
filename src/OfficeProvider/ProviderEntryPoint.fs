@@ -7,19 +7,16 @@ open Microsoft.FSharp.Core.CompilerServices
 open ProviderImplementation.ProvidedTypes
 open Microsoft.FSharp.Quotations
 
-[<TypeProvider>]
-type OfficeTypeProvider(config:TypeProviderConfig) as this = 
+type OfficeTypeProvider(config:TypeProviderConfig, 
+                        rootTypeCtor: (Assembly * string -> ProvidedTypeDefinition), 
+                        providerCtor : (string * string * bool -> IOfficeProvider),
+                        loadExpr : (string * bool * Expr list) -> Expr) as this = 
     inherit TypeProviderForNamespaces()
     
     let rootNamespace = "OfficeProvider"
     let thisAssembly = Assembly.GetExecutingAssembly()
-    let officeRootType = ProvidedTypeDefinition(thisAssembly, rootNamespace, "Office", Some typeof<obj>)
+    let officeRootType = rootTypeCtor (thisAssembly, rootNamespace)
 
-    let createProviderInstance(resolutionPath,document) = 
-        match Path.GetExtension(document) with
-        | ".docx" -> (new WordProvider(resolutionPath, document, true) :> IOfficeProvider) 
-        | ".xlsx" -> (new ExcelProvider(resolutionPath, document, true) :> IOfficeProvider)
-        | _ -> failwithf "Only docx (Word) and xlsx (Excel) files are currently supported"
 
     let staticParameters = [
         ProvidedStaticParameter("Document", typeof<string>)
@@ -40,7 +37,7 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
             let serviceType = ProvidedTypeDefinition("DocumentTypes", None, HideObjectMethods = true)
             let documentType = ProvidedTypeDefinition("Document", Some typeof<ITransacted>, HideObjectMethods = true)
 
-            use provider = createProviderInstance(resolutionPath, documentPath) 
+            let provider = providerCtor(resolutionPath, documentPath, shadowCopy) 
 
             provider.GetFields()
             |> Array.iter (fun field ->
@@ -49,7 +46,9 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
                                         GetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).ReadField(fieldName) @@>),
                                         SetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).SetField(fieldName, %%Expr.Coerce(args.[1],typeof<obj>)) @@>)))
             )
-            
+
+            provider.Dispose()
+
             serviceType.AddMember(documentType)
 
             let rootType = ProvidedTypeDefinition(Assembly.LoadFrom config.RuntimeAssembly, rootNamespace, typeName, Some typeof<obj>, HideObjectMethods = true)
@@ -58,18 +57,36 @@ type OfficeTypeProvider(config:TypeProviderConfig) as this =
             rootType.AddMember(ProvidedMethod("Load", [ProvidedParameter("document", typeof<string>)], 
                                 documentType, 
                                 IsStaticMethod = true, 
-                                InvokeCode = (fun args -> 
-                                    <@@  
-                                        let doc = (%%args.[0] : string)
-                                        if doc.EndsWith("xlsx")
-                                        then new ExcelProvider(resolutionPath, doc, shadowCopy) :> ITransacted
-                                        else new WordProvider(resolutionPath, doc, shadowCopy) :> ITransacted @@>)))
+                                InvokeCode = (fun args -> loadExpr(resolutionPath, shadowCopy, args))))
 
             rootType
     )
     
     do this.AddNamespace(rootNamespace, [officeRootType])
 
+[<TypeProvider>]
+type ExcelTypeProvider(config:TypeProviderConfig) =
+    inherit OfficeTypeProvider(
+        config, 
+        (fun (assm, ns) -> ProvidedTypeDefinition(assm, ns, "Excel", Some typeof<obj>)),
+        (fun (resPath, filePath, shadowCopy) -> new ExcelProvider(resPath, filePath, shadowCopy) :> IOfficeProvider),
+        (fun (resPath, shadowCopy, args) -> 
+            <@@  
+                 let doc = (%%args.[0] : string)
+                 new ExcelProvider(resPath, doc, shadowCopy) :> ITransacted @@>)   
+    )
+
+[<TypeProvider>]
+type WordTypeProvider(config:TypeProviderConfig) =
+    inherit OfficeTypeProvider(
+        config, 
+        (fun (assm, ns) -> ProvidedTypeDefinition(assm, ns, "Word", Some typeof<obj>)),
+        (fun (resPath, filePath, shadowCopy) -> new WordProvider(resPath, filePath, shadowCopy) :> IOfficeProvider),
+        (fun (resPath, shadowCopy, args) -> 
+            <@@  
+                 let doc = (%%args.[0] : string)
+                 new WordProvider(resPath, doc, shadowCopy) :> ITransacted @@>)    
+    )
 
 [<assembly:TypeProviderAssembly>]
 do()

@@ -2,10 +2,12 @@
 
 open System
 open System.IO
+open System.ComponentModel
+open DocumentFormat.OpenXml
 
 module File = 
     
-    let getPath resolutionPath path shadowCopy = 
+    let getPath resolutionPath path extension shadowCopy = 
         let originalPath = 
             if String.IsNullOrWhiteSpace(resolutionPath)
             then new FileInfo(path)
@@ -16,7 +18,7 @@ module File =
             if shadowCopy
             then 
                 let tempPath = Path.GetTempFileName()
-                let xlsxTemp = Path.ChangeExtension(tempPath, "xlsx")
+                let xlsxTemp = Path.ChangeExtension(tempPath, extension)
 
                 if tempPath = xlsxTemp then File.Delete(tempPath)
 
@@ -50,3 +52,45 @@ module Types =
 
         //Sets the value of the field
         abstract SetField : string * obj -> unit
+
+[<AutoOpen>]
+module Helpers = 
+    
+    type MaybeBuilder() = 
+        member __.Bind(m,f) = Option.bind f m
+        member __.Return(x) = Some x
+        member __.ReturnFrom(x) = x
+
+    let maybe = MaybeBuilder()
+
+    module Seq = 
+        
+        let tryHead (source : seq<_>) = 
+            use e = source.GetEnumerator()
+            if e.MoveNext()
+            then Some(e.Current)
+            else None //empty list   
+
+        let tryHeadOrCreate ctor (source : _ seq) = 
+            match tryHead source with
+            | Some(f) when f <> null -> f
+            | _ -> ctor()
+        
+        let ofObject (v:obj) = 
+            seq {
+                if v <> null
+                then
+                    for prop in TypeDescriptor.GetProperties(v.GetType()) do
+                        let value = prop.GetValue(v)
+                        if value <> null
+                        then yield value.ToString()
+                        else yield String.Empty
+            }
+                
+    module Xml = 
+
+        let firstOrCreate (ctor : unit -> 'a) (f : 'a -> 'b) (e:#OpenXmlElement) = 
+            match e.Elements<'a>() |> Seq.tryHead with
+            | Some(r) -> f r
+            | None -> let r = ctor() in e.Append(r); f r
+               
