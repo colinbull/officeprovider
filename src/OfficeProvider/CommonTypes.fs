@@ -39,6 +39,12 @@ module Types =
         inherit IDisposable
         abstract Commit : string -> unit
         abstract Rollback : unit -> unit
+    
+    type ProviderInitParameters = {
+        ResolutionPath : string
+        DocumentPath : string
+        ShadowCopy : bool
+    }
 
     type IOfficeProvider =
         inherit ITransacted
@@ -90,7 +96,7 @@ module Helpers =
     module Xml = 
 
         let firstOrCreate (ctor : unit -> 'a) (f : 'a -> 'b) (e:#OpenXmlElement) = 
-            match e.Elements<'a>() |> Seq.tryHead with
+            match e.Descendants<'a>() |> Seq.tryHead with
             | Some(r) -> f r
             | None -> let r = ctor() in e.Append(r); f r
                

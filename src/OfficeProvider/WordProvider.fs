@@ -9,9 +9,9 @@ open DocumentFormat.OpenXml
 open DocumentFormat.OpenXml.Packaging
 open DocumentFormat.OpenXml.Wordprocessing
 
-type WordProvider(resolutionPath:string, document:string, shadowCopy:bool) = 
-     let documentPath = File.getPath resolutionPath document "docx" shadowCopy
-     let doc = WordprocessingDocument.Open(documentPath, true)
+type WordProvider(parameters:ProviderInitParameters) = 
+     let documentPath = File.getPath parameters.ResolutionPath parameters.DocumentPath "docx" parameters.ShadowCopy
+     let doc = WordprocessingDocument.Open(documentPath, true, new OpenSettings(AutoSave = true))
 
      let contentControls =
         [|
@@ -32,8 +32,12 @@ type WordProvider(resolutionPath:string, document:string, shadowCopy:bool) =
                 for cc in doc.MainDocumentPart.EndnotesPart.Endnotes.Descendants<SdtElement>() do
                     yield cc
         |] 
-        |> Array.map (fun cc -> cc.SdtProperties.GetFirstChild<Tag>().Val.Value, cc)
-        |> Seq.groupBy fst |> Seq.map (fun (k,v) -> k, v |> Seq.map snd |> Seq.toArray)
+        |> Seq.groupBy (fun cc -> cc.SdtProperties.GetFirstChild<Tag>().Val.Value)
+        |> Seq.collect (fun (key, elems) -> 
+            if (Seq.length elems) = 1
+            then seq { yield key, Seq.head elems }
+            else Seq.mapi (fun i e -> if i = 0 then key, e else key + (string i), e) elems
+        )
         |> Map.ofSeq
 
      let writeTable (values: _ []) (target:SdtElement) = 
@@ -74,12 +78,11 @@ type WordProvider(resolutionPath:string, document:string, shadowCopy:bool) =
        member x.GetFields() =
            contentControls 
            |> Map.toArray 
-           |> Array.map (fun (name, vs) -> { FieldName = name; Type = typeof<String> })
+           |> Array.map (fun (name, _) -> { FieldName = name; Type = typeof<String> })
 
        member x.ReadField(name:string) =
-           match contentControls.[name] with
-           | [|t|] -> t.Descendants<Text>().Single().Text |> box
-           | ts -> ts |> Array.map (fun t -> t.Descendants<Text>().Single().Text |> box) |> box
+           contentControls.[name].Descendants<Text>().Single().Text |> box
+           
 
        member x.SetField(name:string, value:obj) =
             let target = contentControls.[name]
@@ -90,11 +93,11 @@ type WordProvider(resolutionPath:string, document:string, shadowCopy:bool) =
                 then writeTable ((value :?> IEnumerable).Cast<obj>().ToArray()) target
                 else writeString (value.ToString()) target
 
-            match target with
-            | [|t|] -> setContent t
-            | ts -> ts |> Array.iter setContent
+            setContent target
 
-       member x.Commit(path) = 
+       member x.Commit(path) =
+            doc.MainDocumentPart.Document.Save()
+            doc.Close()
             if File.Exists(path) then File.Delete(path)
             File.Copy(documentPath, path)
             (x :> IDisposable).Dispose()
@@ -104,6 +107,6 @@ type WordProvider(resolutionPath:string, document:string, shadowCopy:bool) =
 
        member x.Dispose() =
            doc.Dispose()
-           if File.Exists(documentPath) && shadowCopy then File.Delete(documentPath) 
+           if File.Exists(documentPath) && parameters.ShadowCopy then File.Delete(documentPath) 
           
 

@@ -33,9 +33,9 @@ type OfficeTypeProvider(config:TypeProviderConfig,
                 then config.ResolutionFolder
                 else respath
             let shadowCopy = (parameters.[2] :?> bool)
-
-            let serviceType = ProvidedTypeDefinition("DocumentTypes", None, HideObjectMethods = true)
-            let documentType = ProvidedTypeDefinition("Document", Some typeof<ITransacted>, HideObjectMethods = true)
+            let typePrefix = Path.GetFileNameWithoutExtension(documentPath).Replace(" ", "")
+            let serviceType = ProvidedTypeDefinition(typePrefix + "DocumentTypes", None, HideObjectMethods = true)
+            let documentType = ProvidedTypeDefinition(typePrefix + "Document", Some typeof<ITransacted>, HideObjectMethods = true)
 
             let provider = providerCtor(resolutionPath, documentPath, shadowCopy) 
 

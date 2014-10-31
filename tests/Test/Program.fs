@@ -7,25 +7,27 @@ let path = @"D:\Appdev\officeprovider\docs\content\SimpleInvoice.xlsx"
 [<Literal>]
 let wordPath = @"D:\Appdev\officeprovider\docs\content\Billing statement.docx"
 
-//type Excel = OfficeProvider.Excel<path>
 
+type Excel = OfficeProvider.Excel<path>
 type Word = OfficeProvider.Word<wordPath>
 
 [<EntryPoint>]
 let main argv = 
     
-//    use doc = Excel.Load(path)
-//
-//    doc.Name <- "My Company"
-//    
-//    printfn "%s" doc.Name
-//
-//    doc.Commit(@"D:\Appdev\officeprovider\docs\content\SimpleInvoice_Updated.xlsx")
+    use doc = Excel.Load(path)
 
-    use word = Word.Load(path)
+    doc.Name <- "My Company"
+    
+    printfn "%s" doc.Name
+
+    doc.Commit(@"D:\Appdev\officeprovider\docs\content\SimpleInvoice_Updated.xlsx")
+
+    use word = Word.Load(wordPath)
     
     printfn "%s" word.Company
-    word.Company <- "My Company" 
+    word.Company <- "My Company"
+    
+    printfn "%s" word.Company 
     
     word.Commit(@"D:\Appdev\officeprovider\docs\content\BillingStatement_updated.docx")
 
