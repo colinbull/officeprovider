@@ -96,8 +96,24 @@ module Helpers =
                 
     module Xml = 
 
+        open DocumentFormat.OpenXml
+        open DocumentFormat.OpenXml.Packaging
+        open DocumentFormat.OpenXml.Wordprocessing
+
         let firstOrCreate (ctor : unit -> 'a) (f : 'a -> 'b) (e:#OpenXmlElement) = 
             match e.Descendants<'a>() |> Seq.tryHead with
             | Some(r) -> f r
             | None -> let r = ctor() in e.Append(r); f r
-               
+        
+        let innerTextConcat join (e:seq<#OpenXmlElement>) = 
+            String.Join(join, e |> Seq.map (fun x -> x.InnerText))
+
+        let rec getText (e:OpenXmlElement) = 
+            e.Descendants() 
+            |> Seq.map (fun x -> 
+                match box x with
+                | :? SdtRun as r ->  r.Descendants<Text>() |> innerTextConcat " "
+                | :? SdtBlock as r -> String.Join(Environment.NewLine, getText (r :> OpenXmlElement))
+                | :? Paragraph as r -> String.Join(Environment.NewLine, getText (r :> OpenXmlElement))
+                | _ -> failwithf "Failed to get text on %A" x
+            )

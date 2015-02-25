@@ -73,7 +73,11 @@ type WordProvider(resolutionPath, docPath, shadowCopy) =
          |> Xml.firstOrCreate (fun () -> Paragraph()) id
          |> Xml.firstOrCreate (fun () -> Run()) id
          |> Xml.firstOrCreate (fun () -> Text()) (fun (a : Text) -> a.Text <- value)
-           
+    
+     
+
+     let readAsText (element:SdtElement) = Xml.getText element
+
      interface IOfficeProvider with
        member x.GetFields() =
            contentControls 
@@ -81,8 +85,7 @@ type WordProvider(resolutionPath, docPath, shadowCopy) =
            |> Array.map (fun (name, _) -> { FieldName = name; Type = typeof<String> })
 
        member x.ReadField(name:string) =
-           contentControls.[name].Descendants<Text>().Single().Text |> box
-           
+           readAsText (contentControls.[name]) |> box
 
        member x.SetField(name:string, value:obj) =
             let target = contentControls.[name]
