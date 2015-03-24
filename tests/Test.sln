@@ -1,8 +1,14 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.30723.0
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".paket", ".paket", "{DB58990F-5FCE-41A4-B52D-F5EF5FB2DC01}"
+	ProjectSection(SolutionItems) = preProject
+		D:\Appdev\officeprovider\paket.dependencies = D:\Appdev\officeprovider\paket.dependencies
+		..\..\officeprovider\paket.lock = ..\..\officeprovider\paket.lock
+	EndProjectSection
+EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Test", "Test\Test.fsproj", "{AE6BD81E-5718-41DE-A3BC-36B5CFCD47A0}"
 EndProject
 Global
