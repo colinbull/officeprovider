@@ -1,0 +1,16 @@
+NUGET
+  remote: https://www.nuget.org/api/v2
+  specs:
+    DocumentFormat.OpenXml (2.5)
+    FSharp.Compiler.Service (0.0.36)
+    FSharp.Formatting (2.4.1)
+      FSharp.Compiler.Service (>= 0.0.32)
+      Microsoft.AspNet.Razor (>= 2.0.30506.0)
+      RazorEngine (>= 3.3.0)
+    FSharp.TypeProviders.StarterPack (1.1.3.48)
+    Microsoft.AspNet.Razor (2.0.30506.0)
+    NuGet.CommandLine (2.8.3)
+    NUnit (2.6.3)
+    NUnit.Runners (2.6.3)
+    RazorEngine (3.3.0)
+      Microsoft.AspNet.Razor (>= 2.0.30506.0)

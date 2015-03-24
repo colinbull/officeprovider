@@ -1,5 +1,4 @@
 source https://www.nuget.org/api/v2
-source http://hp20006551:8082/guestAuth/app/nuget/v1/FeedService.svc
 
 nuget DocumentFormat.OpenXml 2.5
 nuget FSharp.Compiler.Service 0.0.36

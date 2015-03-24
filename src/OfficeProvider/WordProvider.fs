@@ -34,9 +34,7 @@ type WordProvider(resolutionPath, docPath, shadowCopy) =
         |] 
         |> Seq.groupBy (fun cc -> cc.SdtProperties.GetFirstChild<Tag>().Val.Value)
         |> Seq.collect (fun (key, elems) -> 
-            if (Seq.length elems) = 1
-            then seq { yield key, Seq.head elems }
-            else Seq.mapi (fun i e -> if i = 0 then key, e else key + (string i), e) elems
+            seq { yield key, elems |> Seq.toList }
         )
         |> Map.ofSeq
 
@@ -76,7 +74,12 @@ type WordProvider(resolutionPath, docPath, shadowCopy) =
     
      
 
-     let readAsText (element:SdtElement) = Xml.getText element
+     let read (element:SdtElement list) = 
+         match element with
+         | [] -> box ""
+         | [h] -> box <| (Xml.getText h |> Seq.toArray)
+         | h -> box <| (h |> Seq.collect (Xml.getText >> Seq.toArray) |> Seq.toArray)
+
 
      interface IOfficeProvider with
        member x.GetFields() =
@@ -85,10 +88,10 @@ type WordProvider(resolutionPath, docPath, shadowCopy) =
            |> Array.map (fun (name, _) -> { FieldName = name; Type = typeof<String> })
 
        member x.ReadField(name:string) =
-           readAsText (contentControls.[name]) |> box
+           read (contentControls.[name]) |> box
 
        member x.SetField(name:string, value:obj) =
-            let target = contentControls.[name]
+            let targets = contentControls.[name]
 
             let setContent (target:SdtElement) = 
                 let typ = value.GetType()
@@ -96,7 +99,7 @@ type WordProvider(resolutionPath, docPath, shadowCopy) =
                 then writeTable ((value :?> IEnumerable).Cast<obj>().ToArray()) target
                 else writeString (value.ToString()) target
 
-            setContent target
+            targets |> List.iter setContent
 
        member x.Commit(path) =
             doc.MainDocumentPart.Document.Save()

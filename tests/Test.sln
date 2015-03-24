@@ -5,6 +5,7 @@ VisualStudioVersion = 12.0.30723.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".paket", ".paket", "{DB58990F-5FCE-41A4-B52D-F5EF5FB2DC01}"
 	ProjectSection(SolutionItems) = preProject
+		..\paket.dependencies = ..\paket.dependencies
 		D:\Appdev\officeprovider\paket.dependencies = D:\Appdev\officeprovider\paket.dependencies
 		..\..\officeprovider\paket.lock = ..\..\officeprovider\paket.lock
 	EndProjectSection
