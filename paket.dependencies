@@ -1,0 +1,12 @@
+source https://www.nuget.org/api/v2
+source http://hp20006551:8082/guestAuth/app/nuget/v1/FeedService.svc
+
+nuget DocumentFormat.OpenXml 2.5
+nuget FSharp.Compiler.Service 0.0.36
+nuget FSharp.Formatting 2.4.1
+nuget FSharp.TypeProviders.StarterPack 1.1.3.48
+nuget Microsoft.AspNet.Razor 2.0.30506.0
+nuget NUnit 2.6.3
+nuget NUnit.Runners 2.6.3
+nuget RazorEngine 3.3.0
+nuget NuGet.CommandLine
