@@ -2,6 +2,7 @@ NUGET
   remote: https://www.nuget.org/api/v2
   specs:
     DocumentFormat.OpenXml (2.5)
+    FAKE (4.23.4)
     FSharp.Compiler.Service (0.0.36)
     FSharp.Formatting (2.4.1)
       FSharp.Compiler.Service (>= 0.0.32)
@@ -14,3 +15,4 @@ NUGET
     NUnit.Runners (2.6.3)
     RazorEngine (3.3.0)
       Microsoft.AspNet.Razor (>= 2.0.30506.0)
+    SourceLink.Fake (1.1.0)

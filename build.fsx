@@ -116,7 +116,7 @@ Target "CleanDocs" (fun _ ->
 
 Target "Build" (fun _ ->
     !! solutionFile
-    |> MSBuildRelease "" "Rebuild"
+    |> MSBuildRelease "bin" "Rebuild"
     |> ignore
 )
 
@@ -208,9 +208,9 @@ Target "All" DoNothing
   ==> "RestorePackages"
   ==> "AssemblyInfo"
   ==> "Build"
-  ==> "RunTests"
-  ==> "CleanDocs"
-  ==> "GenerateDocs"
+ // ==> "RunTests"
+//  ==> "CleanDocs"
+//  ==> "GenerateDocs"
   ==> "All"
 
 "All" 

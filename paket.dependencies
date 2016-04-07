@@ -1,5 +1,7 @@
 source https://www.nuget.org/api/v2
 
+nuget FAKE
+nuget SourceLink.FAKE
 nuget DocumentFormat.OpenXml 2.5
 nuget FSharp.Compiler.Service 0.0.36
 nuget FSharp.Formatting 2.4.1
