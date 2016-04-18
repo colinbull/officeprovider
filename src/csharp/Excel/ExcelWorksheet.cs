@@ -1,4 +1,4 @@
-namespace EonUk.Retail.Ice.NonSupplyCustomerServicingModule.Helpers.Office.Excel
+namespace Office.Excel
 {
     using System;
     using System.Collections.Generic;

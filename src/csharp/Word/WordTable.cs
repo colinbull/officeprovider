@@ -1,4 +1,4 @@
-namespace EonUk.Retail.Ice.NonSupplyCustomerServicingModule.Helpers.Office.Word
+namespace Office.Word
 {
     using System;
     using System.Collections.Generic;
