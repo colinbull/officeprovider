@@ -29,10 +29,23 @@ module File =
 
 [<AutoOpen>]
 module Types =
-    
+
+    type Bool0 = Bool0
+    type Bool1 = Bool1
+
+    type InferredType =
+         | Primitive of Type * optional:bool
+         | Record of string * (string * InferredType) list
+         | Null
+         override x.ToString() =
+            match x with
+            | Primitive(t, opt) -> sprintf "Primitive(%A, %b)" t opt
+            | Null -> "NULL"
+            | Record(name, fields) -> sprintf "%s {%s}" name (String.Join(";", fields |> List.map(fun (name, t) -> sprintf "%s = %A" name t )))
+                 
     type Field = {
         FieldName : string
-        Type : Type
+        Type : InferredType
     }
 
     type ITransacted = 
@@ -59,6 +72,45 @@ module Types =
 
         //Sets the value of the field
         abstract SetField : string * obj -> unit
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Field = 
+
+    open System
+    open Microsoft.FSharp.Quotations
+    open ProviderImplementation.ProvidedTypes
+    
+    let rec toProvidedProperty (serviceTypes:ProvidedTypeDefinition) (container:ProvidedTypeDefinition) (field:Field) =
+        let makeOptional t =
+            let t = typedefof<Nullable<_>>
+            t.MakeGenericType([|t|]) 
+
+        let getter fieldName =
+            (fun (args:Expr list) -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).ReadField(fieldName) @@>)
+        let setter fieldName = 
+            (fun (args:Expr list) -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).SetField(fieldName, Expr.Coerce(args.[1],typeof<obj>)) @@>)
+        
+        match field.Type with
+        | Primitive (t, false) ->
+            ProvidedProperty(field.FieldName, t, GetterCode = (getter field.FieldName), SetterCode = (setter field.FieldName))
+        | Primitive (t, true) ->
+            let t = makeOptional t
+            ProvidedProperty(field.FieldName, t, GetterCode = (getter field.FieldName), SetterCode = (setter field.FieldName))
+        | Null ->
+            let t = makeOptional typeof<string>
+            ProvidedProperty(field.FieldName, t, GetterCode = (getter field.FieldName), SetterCode = (setter field.FieldName))
+        | Record(name,fields) ->
+            let fields =
+                [
+                    for (n,f) in fields do
+                        yield toProvidedProperty serviceTypes container { FieldName = n; Type = f }
+                ]
+            let providedT = ProvidedTypeDefinition(name, None)
+            providedT.AddMembers(fields)
+            serviceTypes.AddMember(providedT)
+            ProvidedProperty(field.FieldName, providedT, GetterCode = (fun args -> <@@ obj() @@>))
+
+
 
 [<AutoOpen>]
 module Helpers = 

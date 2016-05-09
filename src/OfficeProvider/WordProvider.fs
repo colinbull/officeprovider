@@ -72,20 +72,22 @@ type WordProvider(resolutionPath, docPath, shadowCopy) =
          |> Xml.firstOrCreate (fun () -> Run()) id
          |> Xml.firstOrCreate (fun () -> Text()) (fun (a : Text) -> a.Text <- value)
     
-     
-
      let read (element:SdtElement list) = 
          match element with
          | [] -> box ""
          | [h] -> box <| (Xml.getText h |> Seq.toArray)
          | h -> box <| (h |> Seq.collect (Xml.getText >> Seq.toArray) |> Seq.toArray)
 
+     let inferType (element:SdtElement list) =
+         element
+         |> List.map (Xml.getText >> Inference.inferPrimitiveType Inference.defaultCulture)
+         |> Inference.unify
 
      interface IOfficeProvider with
        member x.GetFields() =
            contentControls 
            |> Map.toArray 
-           |> Array.map (fun (name, _) -> { FieldName = name; Type = typeof<String> })
+           |> Array.map (fun (name, vs) -> { FieldName = name; Type = (inferType vs) })
 
        member x.ReadField(name:string) =
            read (contentControls.[name]) |> box

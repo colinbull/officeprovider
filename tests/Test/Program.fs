@@ -1,6 +1,7 @@
 ﻿// Learn more about F# at http://fsharp.net
 // See the 'F# Tutorial' project for more help.
 
+open System
 open OfficeProvider
 
 [<Literal>]
@@ -11,16 +12,19 @@ let wordPath = @"/Users/colinbull/appdev/officeprovider/docs/content/Billing sta
 
 
 type Excel = OfficeProvider.Excel<path>
-type Word = OfficeProvider.Word<wordPath>
+//type Word = OfficeProvider.Word<wordPath>
 
 [<EntryPoint>]
 let main argv = 
     
     use doc = Excel.Load(path)
 
-    doc.Name <- "My Company"
+    //doc.DueDate
+    //doc.InvoiceNumber <- 1123
+    //doc.Name <- "My Company"
+    //doc.Address2 <- DateTime.Now
         
-    printfn "%s" doc.Name
+    printfn "%A" doc.Name
 
     doc.Commit(@"/Users/colinbull/appdev/officeprovider/docs/content/SimpleInvoice_Updated.xlsx")
 

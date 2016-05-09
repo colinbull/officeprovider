@@ -62,8 +62,9 @@
     </Compile>
     <Compile Include="QuotationHelpers.fs" />
     <Compile Include="CommonTypes.fs" />
+    <Compile Include="Inference.fs" />
     <Compile Include="ExcelProvider.fs" />
-    <Compile Include="WordProvider.fs" />
+<!--    <Compile Include="WordProvider.fs" /> -->
     <Compile Include="ProviderEntryPoint.fs" />
     <None Include="Script.fsx" />
     <None Include="paket.references" />

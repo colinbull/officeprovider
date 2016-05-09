@@ -51,12 +51,7 @@ type OfficeTypeProvider(config:TypeProviderConfig,
 
             let properties = 
                 provider.GetFields()
-                |> Array.map (fun field ->
-                    let fieldName = field.FieldName
-                    ProvidedProperty(field.FieldName, field.Type, 
-                                     GetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).ReadField(fieldName) @@>),
-                                     SetterCode = (fun args -> <@@ ((%%args.[0] : ITransacted) :?> IOfficeProvider).SetField(fieldName, %%Expr.Coerce(args.[1],typeof<obj>)) @@>))
-                )
+                |> Array.map (Field.toProvidedProperty serviceType documentType)
             
             documentType.AddMembers(properties |> Array.toList)
 
@@ -90,18 +85,18 @@ type ExcelTypeProvider(config:TypeProviderConfig) =
                  new ExcelProvider(rp, doc, sc) :> ITransacted @@>)   
     )
 
-[<TypeProvider>]
-type WordTypeProvider(config:TypeProviderConfig) =
-    inherit OfficeTypeProvider(
-        config, 
-        (fun (assm, ns) -> ProvidedTypeDefinition(assm, ns, "Word", Some typeof<obj>)),
-        (fun param -> new WordProvider(param.ResolutionPath, param.DocumentPath, param.ShadowCopy) :> IOfficeProvider),
-        (fun (param, args) -> 
-            let (rp, sc) = (param.ResolutionPath, param.ShadowCopy)
-            <@@ 
-                 let doc = (%%args.[0] : string)
-                 new WordProvider(rp, doc, sc) :> ITransacted @@>)   
-    )
+// [<TypeProvider>]
+// type WordTypeProvider(config:TypeProviderConfig) =
+//     inherit OfficeTypeProvider(
+//         config, 
+//         (fun (assm, ns) -> ProvidedTypeDefinition(assm, ns, "Word", Some typeof<obj>)),
+//         (fun param -> new WordProvider(param.ResolutionPath, param.DocumentPath, param.ShadowCopy) :> IOfficeProvider),
+//         (fun (param, args) -> 
+//             let (rp, sc) = (param.ResolutionPath, param.ShadowCopy)
+//             <@@ 
+//                  let doc = (%%args.[0] : string)
+//                  new WordProvider(rp, doc, sc) :> ITransacted @@>)   
+//     )
 
 [<assembly:TypeProviderAssembly>]
 do()

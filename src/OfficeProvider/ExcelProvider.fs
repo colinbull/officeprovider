@@ -21,28 +21,38 @@ with
 type ExcelAddress = 
     | Cell of sheet:string * cell:ExcelCell
     | Range of sheet:string * startCell:ExcelCell * endCell:ExcelCell
-    with 
+    with
         member x.Sheet 
             with get() =
                 match x with
                 | Cell(sheet = s) -> s
                 | Range(sheet = s) -> s
-        member x.Indexes
+        member x.StartIndex
             with get() = 
                 match x with
                 | Cell(cell = c) -> c.ColumnIndex, c.RowIndex
                 | Range(startCell = c) -> c.ColumnIndex, c.RowIndex
+        member x.EndIndex
+            with get() = 
+                match x with
+                | Cell(cell = c) -> c.ColumnIndex, c.RowIndex
+                | Range(endCell = c) -> c.ColumnIndex, c.RowIndex
+         member x.Id
+            with get() =
+                match x with
+                | Cell(sheet, cell) -> sprintf "%s!%s%d" sheet cell.Column cell.RowIndex
+                | Range(sheet, s, e) -> sprintf "%s!%s%d%s%d" sheet s.Column s.RowIndex e.Column e.RowIndex
 
 type ExcelField = {
     Name : string
-    Type : Type
+    Type : InferredType
     Sheet : string
     RowIndex : uint32
     ColumnIndex : uint32
 }
 
 module Excel = 
-    
+        
     let ColumnNameRegex = new Regex("[A-Za-z]+");
     let RowIndexRegex = new Regex(@"\d+");
     let AlphaNumericRegex = new Regex("^[A-Z]+$");
@@ -168,16 +178,16 @@ type ExcelProvider(resolutionPath, docPath, shadowCopy) =
             then
                 match cell.DataType.Value with
                 | CellValues.Number -> 
-                    Decimal.Parse text |> box
+                    text
                 | CellValues.SharedString ->
-                    getStringTable().ElementAt(Int32.Parse(text)).InnerText |> box
+                    getStringTable().ElementAt(Int32.Parse(text)).InnerText
                 | CellValues.Boolean -> 
-                    Boolean.Parse text |> box
+                    (Boolean.Parse text).ToString()
                 | CellValues.Date -> 
-                    DateTime.FromOADate(Double.Parse(text)) |> box
-                | _ -> text |> box
-            else text |> box
-        else null
+                    DateTime.FromOADate(Double.Parse(text)).ToString()
+                | _ -> text
+            else text
+        else ""
         
     let writeCellValue (cell:Cell) (value:obj) = 
         match value with
@@ -201,20 +211,16 @@ type ExcelProvider(resolutionPath, docPath, shadowCopy) =
         sheet.Worksheet.Descendants<Cell>()
         |> Seq.tryFind (fun (x:Cell) ->
             let cellAddr = (Excel.parseCellAddress x.CellReference.Value) 
-            cellAddr.Indexes = a.Indexes)
+            cellAddr.StartIndex = a.StartIndex)
 
     let getCellType = function 
-        | Range _ -> typeof<obj[][]>
+        | Range _ as r -> Record(r.Id, [])
         | Cell _ as a -> 
             match tryGetCell a with
-            | Some(cell) when cell.DataType <> null && cell.DataType.HasValue -> 
-               match cell.DataType.Value with
-               | CellValues.Number -> typeof<decimal>
-               | CellValues.SharedString -> typeof<string>
-               | CellValues.Boolean -> typeof<bool>
-               | CellValues.Date -> typeof<DateTime>
-               | _ -> typeof<string>
-            | _ as c -> typeof<string>
+            | Some(cell) ->
+               readCellValue cell
+               |> Inference.inferPrimitive Inference.defaultCulture
+            | _ as c -> Primitive (typeof<string>, true)
 
     interface IOfficeProvider with
        member x.GetFields() = 
@@ -228,7 +234,7 @@ type ExcelProvider(resolutionPath, docPath, shadowCopy) =
                match tryGetCell address with
                | Some(cell) -> cell
                | None -> failwithf "Could not find cell(s) for range %s" name
-           readCellValue cell
+           readCellValue cell |> box
 
        member x.SetField(name:string, value:obj) =
            let cell =
